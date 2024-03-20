@@ -1,7 +1,7 @@
 <idea-plugin>
   <id>net.ashald.envfile</id>
   <name>EnvFile</name>
-  <version>3.2.2</version>
+  <version>3.4.2</version>
   <vendor email="envfile@ashald.net">Borys Pierov</vendor>
 
   <description><![CDATA[
@@ -38,25 +38,22 @@
     ]]></description>
 
   <change-notes><![CDATA[
-      <a href="https://github.com/Ashald/EnvFile/tree/v3.2.2"><b>v3.2.2</b></a> (2021-09-02)
+      <a href="https://github.com/Ashald/EnvFile/tree/v3.4.2"><b>v3.4.1</b></a> (2022-10-04)
       <br/>
       <br/>
 
       <b>Fixed</b>:
       <ul>
-        <li>Incompatibility with IDEA 2021</li>
+        <li>Bump `org.apache.commons:commons-text` to `1.10.0'</li>
       </ul>
+
       <br/>
       <br/>
 
     ]]>
   </change-notes>
 
-  <idea-version since-build="183"/>
-
   <depends>com.intellij.modules.lang</depends>
-  <!-- https://youtrack.jetbrains.com/issue/IDEA-270963 -->
-  <depends optional="true">com.intellij.modules.java</depends>
 
   <extensionPoints>
     <extensionPoint name="envVarsProvider" beanClass="net.ashald.envfile.platform.EnvVarsProviderExtension">
@@ -71,11 +68,13 @@
   </extensions>
 
   <extensions defaultExtensionNs="com.intellij">
+    <notificationGroup displayType="NONE" id="net.ashald.envfile"/>
     <fileTypeFactory implementation="net.ashald.envfile.platform.EnvFileTypeFactory"/>
     <applicationService serviceImplementation="net.ashald.envfile.products.idea.scala.SbtRunConfigurationExtensionManager"/>
   </extensions>
 
-  <depends optional="true" config-file="envfile-idea.xml">com.intellij.modules.lang</depends>
+  <depends optional="true" config-file="envfile-sbt.xml">org.intellij.scala</depends>
+  <depends optional="true" config-file="envfile-idea.xml">com.intellij.modules.java</depends>
   <depends optional="true" config-file="envfile-gradle.xml">com.intellij.gradle</depends>
   <depends optional="true" config-file="envfile-pycharm.xml">com.intellij.modules.python</depends>
   <depends optional="true" config-file="envfile-rubymine.xml">com.intellij.modules.ruby</depends>

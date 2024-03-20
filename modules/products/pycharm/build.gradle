@@ -4,11 +4,17 @@ plugins {
 }
 
 intellij {
-    version jetbrains.version
-    plugins jetbrains.pycharm
+    version = jetbrains.version
+    plugins = [
+        jetbrains.pycharm,
+    ]
 }
+buildSearchableOptions.enabled = false
 
 dependencies {
-    compile project(":envfile-platform")
-    compile "org.jetbrains:annotations:16.0.3"
+    implementation project(":envfile-platform")
+    implementation 'org.jetbrains:annotations:23.0.0'
+
+    compileOnly 'org.projectlombok:lombok:1.18.24'
+    annotationProcessor 'org.projectlombok:lombok:1.18.24'
 }

@@ -1,8 +1,8 @@
 plugins {
     id "java"
     id "idea"
-    id "org.jetbrains.intellij" version "0.3.11"
-    id "pl.allegro.tech.build.axion-release" version "1.9.3"
+    id "org.jetbrains.intellij" version "1.9.0"
+    id "pl.allegro.tech.build.axion-release" version "1.14.1"
 }
 
 group "net.ashald"
@@ -15,61 +15,54 @@ scmVersion {
 }
 
 allprojects {
+    apply plugin: 'java'
+    sourceCompatibility = 1.8
+    targetCompatibility = 1.8
+
     repositories {
         mavenCentral()
     }
     project.version = scmVersion.version
 
     ext.jetbrains = [
-            version : "2018.3",
-            pycharm : "PythonCore:2018.3.183.4284.148",
-            rubymine: "org.jetbrains.plugins.ruby:2018.3.20181121",
-            goland  : "org.jetbrains.plugins.go:183.4284.36.1532",
-            scala   : "org.intellij.scala:2018.3.7"
+            version : "2022.2",
+            pycharm : "PythonCore:222.3345.40",
+            rubymine: "org.jetbrains.plugins.ruby:222.3345.16",
+            goland  : "org.jetbrains.plugins.go:222.3345.90",
+            scala   : "org.intellij.scala:2022.2.3"
     ]
 }
 
 intellij {
-    version jetbrains.version
-    pluginName "EnvFile"
-    sameSinceUntilBuild false
-    updateSinceUntilBuild false
+    version = jetbrains.version
+    pluginName = "EnvFile"
+    sameSinceUntilBuild = false
+    updateSinceUntilBuild = false
+    downloadSources = true
+    plugins = [
+            // This doesn't make any sense as this plugin supposed to be only required on IDEA sub-module
+            // but it doesn't build without it. Suspect a validation bug in JetBrains Gradle plugin.
+            "java",
+    ]
 }
+buildSearchableOptions.enabled = false
 
 dependencies {
-    compile project(":envfile-products-idea")
-    compile project(":envfile-products-pycharm")
-    compile project(":envfile-products-rubymine")
-    compile project(":envfile-products-goland")
+    implementation project(":envfile-products-idea")
+    implementation project(":envfile-products-pycharm")
+    implementation project(":envfile-products-rubymine")
+    implementation project(":envfile-products-goland")
 }
 
 wrapper {
-    gradleVersion = "4.10.2"
+    gradleVersion = "7.5.1"
 }
 
-def prj = ".idea/"
+runIde.ideDir =  java.util.Optional.ofNullable(System.getenv("IDE")).map(File::new).orElse(null)
 
-idea {
-    module.iml {
-      generateTo = file(prj)
-
-      withXml {
-          it.node.@type = "PLUGIN_MODULE"
-          it.node.appendNode('component', [name: 'DevKit.ModuleBuildProperties', url: 'file://$MODULE_DIR$/src/main/resources/META-INF/plugin.xml'])
-      }
+tasks {
+    patchPluginXml {
+        sinceBuild.set("201")
     }
-}
 
-task setup {
-    dependsOn ideaModule, ideaProject
-    // overriding idea.project.outputFile changes relative path calculation so it's easier to just move a file
-    doLast {
-       copy {
-          from '.'
-          into prj
-          include "${project.name}.ipr"
-          rename { "modules.xml" }
-       }
-       project.delete "${project.name}.ipr"
-     }
 }

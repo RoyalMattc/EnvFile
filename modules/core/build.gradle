@@ -3,9 +3,16 @@ plugins {
 }
 
 dependencies {
-    compile "org.jetbrains:annotations:16.0.3"
-    compile "org.yaml:snakeyaml:1.23"
-    compile "org.apache.commons:commons-text:1.5"
+    implementation 'org.jetbrains:annotations:23.0.0'
+    implementation 'org.yaml:snakeyaml:1.32'
 
-    testCompile 'junit:junit:4.12'
+    implementation 'com.google.guava:guava:31.1-jre'
+
+    compileOnly 'org.projectlombok:lombok:1.18.24'
+    annotationProcessor 'org.projectlombok:lombok:1.18.24'
+
+    testImplementation 'junit:junit:4.13.2'
+
+    testCompileOnly 'org.projectlombok:lombok:1.18.24'
+    testAnnotationProcessor 'org.projectlombok:lombok:1.18.24'
 }

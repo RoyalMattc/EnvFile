@@ -1,42 +1,64 @@
 package net.ashald.envfile.providers.dotenv;
 
-import net.ashald.envfile.AbstractEnvVarsProvider;
-import net.ashald.envfile.EnvFileErrorException;
-import org.jetbrains.annotations.NotNull;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
+import net.ashald.envfile.providers.EnvFileParser;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 
-public class DotEnvFileParser extends AbstractEnvVarsProvider {
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
+public class DotEnvFileParser implements EnvFileParser {
+    public static final DotEnvFileParser INSTANCE = new DotEnvFileParser();
+    private static final String ANY_NEW_LINE = "\\R";
 
-    public DotEnvFileParser(boolean shouldSubstituteEnvVar) {
-        super(shouldSubstituteEnvVar);
-    }
-
-    @NotNull
     @Override
-    protected Map<String, String> getEnvVars(@NotNull Map<String, String> runConfigEnv, @NotNull String path) throws EnvFileErrorException {
+    public Map<String, String> parse(String data) {
         Map<String, String> result = new LinkedHashMap<>();
+        Pattern doublequote = Pattern.compile("^(.*[^\\\\])?\"");
+        Pattern quotedValue = Pattern.compile("^\"(.*[^\\\\])?\"$");
 
-        try {
-            List<String> lines = Files.readAllLines(Paths.get(path), StandardCharsets.UTF_8);
-            for (String l: lines) {
-                String strippedLine = l.trim();
-                if (!strippedLine.startsWith("#") && strippedLine.contains("=")) {
-                    String[] tokens = strippedLine.split("=", 2);
-                    String key = tokens[0];
-                    String value = trim(tokens[1]);
-                    result.put(key, value);
+        String multiLineKey = null;
+        StringBuilder multiLineValueAccumulator = null;
+
+        for (String l : data.split(ANY_NEW_LINE)) {
+            String strippedLine = l.trim();
+            if (strippedLine.startsWith("#")) {
+                continue;
+            }
+
+            if (multiLineValueAccumulator != null) {
+                String strippedLineWithoutComments = removeComments(strippedLine);
+                Matcher valueEndMatcher = doublequote.matcher(strippedLineWithoutComments);
+                if(valueEndMatcher.find()){
+                    int doubleQuoteIndex = valueEndMatcher.end() - 1;
+                    multiLineValueAccumulator.append("\n").append(removeEscapedDoubleQuotes(strippedLineWithoutComments), 0, doubleQuoteIndex);
+                    result.put(multiLineKey, multiLineValueAccumulator.toString());
+                    multiLineKey = null;
+                    multiLineValueAccumulator = null;
+                } else {
+                    multiLineValueAccumulator.append("\n").append(removeEscapedDoubleQuotes(strippedLineWithoutComments));
+                }
+            } else if (strippedLine.contains("=")) {
+                String[] tokens = strippedLine.split("=", 2);
+                String key = tokens[0];
+                if (key.startsWith("export ")) {
+                    key = key.substring(7).trim();
+                }
+                String rawValue = tokens[1].trim();
+                Matcher quotedValueMatcher = quotedValue.matcher(rawValue);
+                if (!rawValue.startsWith("\"") || quotedValueMatcher.find()) {
+                    String value = trim(rawValue);
+                    result.put(key, removeEscapedDoubleQuotes(value));
+                } else {
+                    multiLineKey = key;
+                    String value = removeComments(rawValue.substring(1));
+                    value = removeEscapedDoubleQuotes(value);
+                    multiLineValueAccumulator = new StringBuilder(value);
                 }
             }
-        } catch (IOException ex) {
-            throw new EnvFileErrorException(ex);
         }
 
         return result;
@@ -46,8 +68,16 @@ public class DotEnvFileParser extends AbstractEnvVarsProvider {
         String trimmed = value.trim();
 
         if ((trimmed.startsWith("\"") && trimmed.endsWith("\"")) || (trimmed.startsWith("'") && trimmed.endsWith("'")))
-            return trimmed.substring(1, trimmed.length() - 1);
+            return trimmed.substring(1, trimmed.length() - 1).replace("\\n", "\n");
 
+        return removeComments(trimmed);
+    }
+
+    private static String removeComments(String trimmed) {
         return trimmed.replaceAll("\\s#.*$", "").replaceAll("(\\s)\\\\#", "$1#").trim();
+    }
+
+    private static String removeEscapedDoubleQuotes(String value) {
+        return value.replaceAll("\\\\\"", "\"");
     }
 }

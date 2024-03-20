@@ -1,41 +1,43 @@
 package net.ashald.envfile.providers.yaml;
-import net.ashald.envfile.EnvFileErrorException;
-import net.ashald.envfile.providers.dotenv.DotEnvFileParser;
-import org.junit.Assert;
-import org.junit.Test;
 
-import java.io.IOException;
+import com.google.common.collect.ImmutableList;
+import lombok.SneakyThrows;
+import lombok.val;
+import org.junit.Test;
+import org.yaml.snakeyaml.Yaml;
+
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
+
+import static org.junit.Assert.assertEquals;
 
 public class YamlEnvFileParserTest {
+    private final YamlEnvFileParser PARSER = new YamlEnvFileParser(new Yaml());
 
-    private YamlEnvFileParser parser = new YamlEnvFileParser(true);
-
-    private String getFile(String name) {
-        return Paths.get("src","test", "resources", "providers", "yaml", name).toString();
+    /**
+     * TODO: generalize
+     */
+    @SneakyThrows
+    private static String getFile(String name) {
+        val bytes = Files.readAllBytes(Paths.get("src", "test", "resources", "providers", "yaml", name));
+        return new String(bytes, StandardCharsets.UTF_8);
     }
 
     @Test
-    public void testSubstitutions() throws EnvFileErrorException, IOException {
-        Map<String, String> context = new HashMap<String, String>() {{
-            put("FOO", "BAR");
-        }};
+    public void GIVEN_parse_WHEN_parses_THEN_preservesOrder() {
+        val result = PARSER.parse(
+                getFile("order.yaml")
+        );
 
-        Map<String, String> result = parser.process(Collections.emptyMap(), getFile("substitutions.yaml"), context);
-        Assert.assertEquals("", result.get("A"));
-        Assert.assertEquals("default", result.get("B"));
-        Assert.assertEquals("BAR", result.get("C"));
-        Assert.assertEquals("BAR default", result.get("D"));
-        Assert.assertEquals("BAR", result.get("E"));
-    }
+        val keys = ImmutableList.copyOf(
+                result.keySet()
+        );
 
-    @Test
-    public void testOrder() throws EnvFileErrorException, IOException {
-        Map<String, String> result = parser.process(Collections.emptyMap(), getFile("order.yaml"), Collections.emptyMap());
-        Assert.assertEquals("A(B(C))", result.get("A"));
+        assertEquals(
+                ImmutableList.of("C", "B", "A"),
+                keys
+        );
     }
 
 }

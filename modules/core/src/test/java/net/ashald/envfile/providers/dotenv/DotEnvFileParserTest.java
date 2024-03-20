@@ -1,70 +1,144 @@
 package net.ashald.envfile.providers.dotenv;
-import net.ashald.envfile.EnvFileErrorException;
-import org.junit.Assert;
+
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import lombok.SneakyThrows;
+import lombok.val;
 import org.junit.Test;
 
-import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.Map;
+
+import static org.junit.Assert.assertEquals;
 
 public class DotEnvFileParserTest {
+    private static final DotEnvFileParser PARSER = DotEnvFileParser.INSTANCE;
 
-    private DotEnvFileParser parser = new DotEnvFileParser(true);
-
-    private String getFile(String name) {
-        return Paths.get("src","test", "resources", "providers", "dotenv", name).toString();
+    /**
+     * TODO: generalize
+     */
+    @SneakyThrows
+    private static String getFile(String name) {
+        val bytes = Files.readAllBytes(Paths.get("src", "test", "resources", "providers", "dotenv", name));
+        return new String(bytes, StandardCharsets.UTF_8);
     }
 
     @Test
-    public void testMalformedEncoding() throws EnvFileErrorException {
-        parser.getEnvVars(Collections.emptyMap(), getFile("malformed-unicode.env")); // should not fail
+    public void GIVEN_parse_WEHN_charSequenceLooksLikeMalformedUnicode_THEN_doesNotFail() {
+        val result = PARSER.parse(
+                getFile("malformed-unicode.env")
+        );
+
+        assertEquals(ImmutableMap.of("FOO", "\\usr"), result);
     }
 
     @Test
-    public void testLinesStartingWithHasAreIgnored() throws EnvFileErrorException {
-        Map<String, String> result = parser.getEnvVars(Collections.emptyMap(), getFile("full-line-comments.env"));
-        Assert.assertEquals(1, result.size());
-        Assert.assertEquals("value", result.get("key"));
+    public void GIVEN_parse_WHEN_fullLineComment_THEN_ignored() {
+        val result = PARSER.parse(
+                getFile("full-line-comments.env")
+        );
+
+        assertEquals(
+                ImmutableMap.of("key", "value"),
+                result
+        );
     }
 
     @Test
-    public void testInlineComments() throws EnvFileErrorException {
-        Map<String, String> result = parser.getEnvVars(Collections.emptyMap(), getFile("inline-comments.env"));
-        Assert.assertEquals("foo#bar", result.get("key1"));
-        Assert.assertEquals("foo", result.get("key2"));
-        Assert.assertEquals("foo #bar", result.get("key3"));
-        Assert.assertEquals("foo #bar", result.get("key4"));
-        Assert.assertEquals("foo #bar", result.get("key5"));
+    public void GIVEN_parse_WHEN_poundSignPresentInline_THEN_ignoredOnlyWhenUnescapedWithPrecedingBlankSpace() {
+        val result = PARSER.parse(
+                getFile("inline-comments.env")
+        );
+
+        assertEquals(
+                ImmutableMap.of(
+                        "key1", "foo#bar",
+                        "key2", "foo",
+                        "key3", "foo #bar",
+                        "key4", "foo #bar",
+                        "key5", "foo #bar"
+                ),
+                result
+        );
     }
 
     @Test
-    public void testBackslashesArePreserved() throws EnvFileErrorException {
-        Map<String, String> result = parser.getEnvVars(Collections.emptyMap(), getFile("backslashes.env"));
-        Assert.assertEquals(1, result.size());
-        Assert.assertEquals("value\\1", result.get("TEST_VAR"));
+    public void GIVEN_parse_WEHN_backslahesPresent_THEN_preserved() {
+        val result = PARSER.parse(
+                getFile("backslashes.env")
+        );
+
+        assertEquals(
+                ImmutableMap.of(
+                        "TEST_VAR", "value\\1"
+                ),
+                result
+        );
     }
 
     @Test
-    public void testSubstitutions() throws EnvFileErrorException, IOException {
-        Map<String, String> context = new HashMap<String, String>() {{
-            put("FOO", "BAR");
-        }};
+    public void GIVEN_parse_WHEN_parses_THEN_preservesOrder() {
+        val result = PARSER.parse(
+                getFile("order.env")
+        );
 
-        Map<String, String> result = parser.process(Collections.emptyMap(), getFile("substitutions.env"), context);
-        Assert.assertEquals("", result.get("A"));
-        Assert.assertEquals("default", result.get("B"));
-        Assert.assertEquals("BAR", result.get("C"));
-        Assert.assertEquals("BAR default", result.get("D"));
-        Assert.assertEquals("BAR", result.get("E"));
+        val keys = ImmutableList.copyOf(
+                result.keySet()
+        );
+
+        assertEquals(
+                ImmutableList.of("C", "B", "A"),
+                keys
+        );
     }
 
     @Test
-    public void testOrder() throws EnvFileErrorException, IOException {
-        Map<String, String> result = parser.process(Collections.emptyMap(), getFile("order.env"), Collections.emptyMap());
-        Assert.assertEquals("A(B(C))", result.get("A"));
+    public void GIVEN_parse_WHEN_multilineVariable_THEN_preserved() {
+        val result = PARSER.parse(
+                getFile("multi-line-variable.env")
+        );
+
+        assertEquals(
+                ImmutableMap.of(
+                        "PRIVATE_KEY", "-----BEGIN RSA PRIVATE KEY-----\nHkVN9...\n-----END DSA PRIVATE KEY-----\n"
+                ),
+                result
+        );
     }
 
+    @Test
+    public void GIVEN_parse_WHEN_multilineVariableWithLineBreaks_THEN_preserved() {
+        val result = PARSER.parse(
+                getFile("multi-line-variable-with-line-breaks.env")
+        );
+
+        assertEquals(
+                ImmutableMap.of(
+                        "PRIVATE_KEY", "-----BEGIN RSA PRIVATE KEY-----\n" +
+                                "...\n" +
+                                "HkVN9...\n" +
+                                "...\n" +
+                                "-----END DSA PRIVATE KEY-----"
+                ),
+                result
+        );
+    }
+
+    @Test
+    public void GIVEN_parse_WHEN_multilineVariableWithLineBreaksAndQuotes_THEN_preserved() {
+        val result = PARSER.parse(
+                getFile("multi-line-variable-with-line-breaks-and-quotes.env")
+        );
+
+        assertEquals(
+                ImmutableMap.of(
+                        "JSON", "{\n" +
+                                "\"foo\": \"bar\",\n" +
+                                "\"fizz\": \"fuzz\"\n" +
+                                "}"
+                ),
+                result
+        );
+    }
 }
